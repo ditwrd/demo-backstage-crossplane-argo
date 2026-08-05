@@ -1,3 +1,5 @@
 [tools]
+helmfile = "1.5.5"
+kind = "0.32.0"
 node = "24.16.0"
 yarn = "4.17.1"
