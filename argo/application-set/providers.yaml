@@ -1,0 +1,26 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: providers
+  namespace: argo
+spec:
+  project: demo-bca
+  source:
+    repoURL: https://github.com/ditwrd/demo-backstage-crossplane-argo
+    targetRevision: HEAD
+    path: crossplane/providers
+    directory:
+      recurse: false
+      include: "*.yaml"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argo
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      - CreateNamespace=true
+      - PrunePropagationPolicy=background
+      - PruneLast=true
