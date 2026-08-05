@@ -1,0 +1,182 @@
+apiVersion: apiextensions.crossplane.io/v2
+kind: CompositeResourceDefinition
+metadata:
+  name: xs3buckets.aws.example.org
+spec:
+  group: aws.example.org
+  scope: Namespaced
+  names:
+    kind: XS3Bucket
+    plural: xs3buckets
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required: [bucketName, region]
+              properties:
+                bucketName:
+                  type: string
+                  description: >-
+                    Globally-unique S3 bucket name. Used verbatim as the
+                    bucket's metadata.name, which Crossplane derives the
+                    external-name (the real AWS bucket name) from.
+                region:
+                  type: string
+                  description: AWS region the bucket is created in.
+                forceDestroy:
+                  type: boolean
+                  default: false
+                  description: Allow deleting a non-empty bucket.
+                objectLockEnabled:
+                  type: boolean
+                  default: false
+                  description: Enable Object Lock support on the bucket (cannot be changed after creation).
+                tags:
+                  type: object
+                  additionalProperties:
+                    type: string
+                  default: {}
+
+                objectOwnership:
+                  type: string
+                  enum: [BucketOwnerEnforced, BucketOwnerPreferred, ObjectWriter]
+                  default: BucketOwnerEnforced
+                  description: Object ownership setting. ACLs only work with BucketOwnerPreferred/ObjectWriter.
+                acl:
+                  type: string
+                  enum:
+                    - private
+                    - public-read
+                    - public-read-write
+                    - aws-exec-read
+                    - authenticated-read
+                    - bucket-owner-read
+                    - bucket-owner-full-control
+                    - log-delivery-write
+                  description: >-
+                    Canned ACL to apply. Omit to skip managing an ACL
+                    (required when objectOwnership is BucketOwnerEnforced).
+
+                publicAccessBlock:
+                  type: object
+                  default: {}
+                  properties:
+                    blockPublicAcls: { type: boolean, default: true }
+                    blockPublicPolicy: { type: boolean, default: true }
+                    ignorePublicAcls: { type: boolean, default: true }
+                    restrictPublicBuckets: { type: boolean, default: true }
+
+                versioning:
+                  type: object
+                  default: {}
+                  properties:
+                    status:
+                      type: string
+                      enum: [Enabled, Suspended]
+                      default: Suspended
+                    mfaDelete:
+                      type: string
+                      enum: [Enabled, Disabled]
+                      default: Disabled
+
+                serverSideEncryption:
+                  type: object
+                  default: {}
+                  properties:
+                    sseAlgorithm:
+                      type: string
+                      enum: ["AES256", "aws:kms", "aws:kms:dsse"]
+                      default: AES256
+                    kmsMasterKeyId:
+                      type: string
+                      description: KMS key ID/ARN. Only used when sseAlgorithm is aws:kms or aws:kms:dsse.
+                    bucketKeyEnabled:
+                      type: boolean
+                      default: true
+
+                lifecycleRules:
+                  type: array
+                  default: []
+                  items:
+                    type: object
+                    required: [id]
+                    properties:
+                      id: { type: string }
+                      enabled: { type: boolean, default: true }
+                      prefix:
+                        type: string
+                        description: Restrict the rule to keys with this prefix.
+                      abortIncompleteMultipartUploadDays: { type: integer }
+                      expirationDays: { type: integer }
+                      noncurrentVersionExpirationDays: { type: integer }
+                      transitions:
+                        type: array
+                        default: []
+                        items:
+                          type: object
+                          required: [days, storageClass]
+                          properties:
+                            days: { type: integer }
+                            storageClass: { type: string }
+                      noncurrentVersionTransitions:
+                        type: array
+                        default: []
+                        items:
+                          type: object
+                          required: [noncurrentDays, storageClass]
+                          properties:
+                            noncurrentDays: { type: integer }
+                            storageClass: { type: string }
+
+                corsRules:
+                  type: array
+                  default: []
+                  items:
+                    type: object
+                    required: [allowedMethods, allowedOrigins]
+                    properties:
+                      allowedMethods: { type: array, items: { type: string } }
+                      allowedOrigins: { type: array, items: { type: string } }
+                      allowedHeaders: { type: array, items: { type: string }, default: [] }
+                      exposeHeaders: { type: array, items: { type: string }, default: [] }
+                      maxAgeSeconds: { type: integer }
+
+                logging:
+                  type: object
+                  default: {}
+                  properties:
+                    enabled: { type: boolean, default: false }
+                    targetBucket:
+                      type: string
+                      description: Name of the bucket access logs are delivered to. Required when enabled.
+                    targetPrefix: { type: string, default: "" }
+
+                website:
+                  type: object
+                  default: {}
+                  properties:
+                    enabled: { type: boolean, default: false }
+                    indexDocument: { type: string, default: index.html }
+                    errorDocument: { type: string, default: error.html }
+
+                objectLockDefaultRetention:
+                  type: object
+                  description: Default retention rule for new objects. Requires objectLockEnabled.
+                  properties:
+                    mode: { type: string, enum: [GOVERNANCE, COMPLIANCE] }
+                    days: { type: integer }
+                    years: { type: integer }
+
+                policy:
+                  type: string
+                  description: >-
+                    Raw bucket policy JSON document. The bucket ARN is
+                    deterministic (arn:aws:s3:::<bucketName>) so it can be
+                    written directly into the document. Omit to skip
+                    attaching a policy.

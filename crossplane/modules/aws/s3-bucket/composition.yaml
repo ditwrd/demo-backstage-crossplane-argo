@@ -1,0 +1,307 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: xs3buckets.aws.example.org-v1alpha1
+spec:
+  compositeTypeRef:
+    apiVersion: aws.example.org/v1alpha1
+    kind: XS3Bucket
+  mode: Pipeline
+  pipeline:
+    - step: render
+      functionRef:
+        name: function-go-templating
+      input:
+        apiVersion: gotemplating.fn.crossplane.io/v1beta1
+        kind: GoTemplate
+        source: Inline
+        inline:
+          template: |
+            {{- $spec := .observed.composite.resource.spec }}
+            {{- $bucketName := $spec.bucketName }}
+            {{- $region := $spec.region }}
+            {{- $tags := merge (dict
+                "crossplane-name" $bucketName
+                "crossplane-providerconfig" "pod-identity"
+                "crossplane-kind" "Bucket.s3.aws.m.upbound.io"
+                "Name" $bucketName
+              ) (default (dict) $spec.tags) }}
+            {{- $pab := default (dict) $spec.publicAccessBlock }}
+            {{- $versioning := default (dict) $spec.versioning }}
+            {{- $sse := default (dict) $spec.serverSideEncryption }}
+            {{- $lifecycleRules := default (list) $spec.lifecycleRules }}
+            {{- $corsRules := default (list) $spec.corsRules }}
+            {{- $logging := default (dict) $spec.logging }}
+            {{- $website := default (dict) $spec.website }}
+            {{- $acl := default "" $spec.acl }}
+            {{- $policy := default "" $spec.policy }}
+            {{- $olr := default (dict) $spec.objectLockDefaultRetention }}
+            ---
+            apiVersion: s3.aws.m.upbound.io/v1beta1
+            kind: Bucket
+            metadata:
+              name: {{ $bucketName }}
+              annotations:
+                {{ setResourceNameAnnotation "bucket" }}
+            spec:
+              forProvider:
+                region: {{ $region }}
+                forceDestroy: {{ default false $spec.forceDestroy }}
+                objectLockEnabled: {{ default false $spec.objectLockEnabled }}
+                tags:
+                  {{ range $k, $v := $tags }}
+                  {{ $k }}: {{ $v | quote }}
+                  {{ end }}
+              providerConfigRef:
+                name: pod-identity
+                kind: ClusterProviderConfig
+            ---
+            apiVersion: s3.aws.m.upbound.io/v1beta1
+            kind: BucketOwnershipControls
+            metadata:
+              name: {{ $bucketName }}-ownership
+              annotations:
+                {{ setResourceNameAnnotation "ownership" }}
+            spec:
+              forProvider:
+                region: {{ $region }}
+                bucket: {{ $bucketName }}
+                rule:
+                  objectOwnership: {{ default "BucketOwnerEnforced" $spec.objectOwnership }}
+              providerConfigRef:
+                name: pod-identity
+                kind: ClusterProviderConfig
+            ---
+            apiVersion: s3.aws.m.upbound.io/v1beta1
+            kind: BucketPublicAccessBlock
+            metadata:
+              name: {{ $bucketName }}-pab
+              annotations:
+                {{ setResourceNameAnnotation "pab" }}
+            spec:
+              forProvider:
+                region: {{ $region }}
+                bucket: {{ $bucketName }}
+                blockPublicAcls: {{ default true $pab.blockPublicAcls }}
+                blockPublicPolicy: {{ default true $pab.blockPublicPolicy }}
+                ignorePublicAcls: {{ default true $pab.ignorePublicAcls }}
+                restrictPublicBuckets: {{ default true $pab.restrictPublicBuckets }}
+              providerConfigRef:
+                name: pod-identity
+                kind: ClusterProviderConfig
+            ---
+            apiVersion: s3.aws.m.upbound.io/v1beta1
+            kind: BucketVersioning
+            metadata:
+              name: {{ $bucketName }}-versioning
+              annotations:
+                {{ setResourceNameAnnotation "versioning" }}
+            spec:
+              forProvider:
+                region: {{ $region }}
+                bucket: {{ $bucketName }}
+                versioningConfiguration:
+                  status: {{ default "Suspended" $versioning.status }}
+                  mfaDelete: {{ default "Disabled" $versioning.mfaDelete }}
+              providerConfigRef:
+                name: pod-identity
+                kind: ClusterProviderConfig
+            ---
+            apiVersion: s3.aws.m.upbound.io/v1beta1
+            kind: BucketServerSideEncryptionConfiguration
+            metadata:
+              name: {{ $bucketName }}-sse
+              annotations:
+                {{ setResourceNameAnnotation "sse" }}
+            spec:
+              forProvider:
+                region: {{ $region }}
+                bucket: {{ $bucketName }}
+                rule:
+                  - bucketKeyEnabled: {{ default true $sse.bucketKeyEnabled }}
+                    applyServerSideEncryptionByDefault:
+                      sseAlgorithm: {{ default "AES256" $sse.sseAlgorithm | quote }}
+                      {{ if $sse.kmsMasterKeyId }}
+                      kmsMasterKeyId: {{ $sse.kmsMasterKeyId | quote }}
+                      {{ end }}
+              providerConfigRef:
+                name: pod-identity
+                kind: ClusterProviderConfig
+            {{- if $acl }}
+            ---
+            apiVersion: s3.aws.m.upbound.io/v1beta1
+            kind: BucketACL
+            metadata:
+              name: {{ $bucketName }}-acl
+              annotations:
+                {{ setResourceNameAnnotation "acl" }}
+            spec:
+              forProvider:
+                region: {{ $region }}
+                bucket: {{ $bucketName }}
+                acl: {{ $acl | quote }}
+              providerConfigRef:
+                name: pod-identity
+                kind: ClusterProviderConfig
+            {{- end }}
+            {{- if gt (len $lifecycleRules) 0 }}
+            ---
+            apiVersion: s3.aws.m.upbound.io/v1beta1
+            kind: BucketLifecycleConfiguration
+            metadata:
+              name: {{ $bucketName }}-lifecycle
+              annotations:
+                {{ setResourceNameAnnotation "lifecycle" }}
+            spec:
+              forProvider:
+                region: {{ $region }}
+                bucket: {{ $bucketName }}
+                rule:
+                  {{ range $lifecycleRules }}
+                  - id: {{ .id | quote }}
+                    status: {{ if eq (default true .enabled) false }}Disabled{{ else }}Enabled{{ end }}
+                    {{ if .prefix }}
+                    filter:
+                      - prefix: {{ .prefix | quote }}
+                    {{ end }}
+                    {{ if .abortIncompleteMultipartUploadDays }}
+                    abortIncompleteMultipartUpload:
+                      - daysAfterInitiation: {{ .abortIncompleteMultipartUploadDays }}
+                    {{ end }}
+                    {{ if .expirationDays }}
+                    expiration:
+                      - days: {{ .expirationDays }}
+                    {{ end }}
+                    {{ if .noncurrentVersionExpirationDays }}
+                    noncurrentVersionExpiration:
+                      - noncurrentDays: {{ .noncurrentVersionExpirationDays }}
+                    {{ end }}
+                    {{ if gt (len (default (list) .transitions)) 0 }}
+                    transition:
+                      {{ range .transitions }}
+                      - days: {{ .days }}
+                        storageClass: {{ .storageClass | quote }}
+                      {{ end }}
+                    {{ end }}
+                    {{ if gt (len (default (list) .noncurrentVersionTransitions)) 0 }}
+                    noncurrentVersionTransition:
+                      {{ range .noncurrentVersionTransitions }}
+                      - noncurrentDays: {{ .noncurrentDays }}
+                        storageClass: {{ .storageClass | quote }}
+                      {{ end }}
+                    {{ end }}
+                  {{ end }}
+              providerConfigRef:
+                name: pod-identity
+                kind: ClusterProviderConfig
+            {{- end }}
+            {{- if gt (len $corsRules) 0 }}
+            ---
+            apiVersion: s3.aws.m.upbound.io/v1beta1
+            kind: BucketCorsConfiguration
+            metadata:
+              name: {{ $bucketName }}-cors
+              annotations:
+                {{ setResourceNameAnnotation "cors" }}
+            spec:
+              forProvider:
+                region: {{ $region }}
+                bucket: {{ $bucketName }}
+                corsRule:
+                  {{ range $corsRules }}
+                  - allowedMethods: {{ .allowedMethods | toJson }}
+                    allowedOrigins: {{ .allowedOrigins | toJson }}
+                    allowedHeaders: {{ default (list) .allowedHeaders | toJson }}
+                    exposeHeaders: {{ default (list) .exposeHeaders | toJson }}
+                    {{ if .maxAgeSeconds }}
+                    maxAgeSeconds: {{ .maxAgeSeconds }}
+                    {{ end }}
+                  {{ end }}
+              providerConfigRef:
+                name: pod-identity
+                kind: ClusterProviderConfig
+            {{- end }}
+            {{- if $logging.enabled }}
+            ---
+            apiVersion: s3.aws.m.upbound.io/v1beta1
+            kind: BucketLogging
+            metadata:
+              name: {{ $bucketName }}-logging
+              annotations:
+                {{ setResourceNameAnnotation "logging" }}
+            spec:
+              forProvider:
+                region: {{ $region }}
+                bucket: {{ $bucketName }}
+                targetBucket: {{ $logging.targetBucket | quote }}
+                targetPrefix: {{ default "" $logging.targetPrefix | quote }}
+              providerConfigRef:
+                name: pod-identity
+                kind: ClusterProviderConfig
+            {{- end }}
+            {{- if $website.enabled }}
+            ---
+            apiVersion: s3.aws.m.upbound.io/v1beta1
+            kind: BucketWebsiteConfiguration
+            metadata:
+              name: {{ $bucketName }}-website
+              annotations:
+                {{ setResourceNameAnnotation "website" }}
+            spec:
+              forProvider:
+                region: {{ $region }}
+                bucket: {{ $bucketName }}
+                indexDocument:
+                  suffix: {{ default "index.html" $website.indexDocument | quote }}
+                errorDocument:
+                  key: {{ default "error.html" $website.errorDocument | quote }}
+              providerConfigRef:
+                name: pod-identity
+                kind: ClusterProviderConfig
+            {{- end }}
+            {{- if $olr.mode }}
+            ---
+            apiVersion: s3.aws.m.upbound.io/v1beta1
+            kind: BucketObjectLockConfiguration
+            metadata:
+              name: {{ $bucketName }}-object-lock
+              annotations:
+                {{ setResourceNameAnnotation "object-lock" }}
+            spec:
+              forProvider:
+                region: {{ $region }}
+                bucket: {{ $bucketName }}
+                rule:
+                  defaultRetention:
+                    mode: {{ $olr.mode | quote }}
+                    {{ if $olr.days }}
+                    days: {{ $olr.days }}
+                    {{ end }}
+                    {{ if $olr.years }}
+                    years: {{ $olr.years }}
+                    {{ end }}
+              providerConfigRef:
+                name: pod-identity
+                kind: ClusterProviderConfig
+            {{- end }}
+            {{- if $policy }}
+            ---
+            apiVersion: s3.aws.m.upbound.io/v1beta1
+            kind: BucketPolicy
+            metadata:
+              name: {{ $bucketName }}-policy
+              annotations:
+                {{ setResourceNameAnnotation "policy" }}
+            spec:
+              forProvider:
+                region: {{ $region }}
+                bucket: {{ $bucketName }}
+                policy: {{ $policy | quote }}
+              providerConfigRef:
+                name: pod-identity
+                kind: ClusterProviderConfig
+            {{- end }}
+
+    - step: ready
+      functionRef:
+        name: function-auto-ready
