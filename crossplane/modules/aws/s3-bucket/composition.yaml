@@ -20,12 +20,6 @@ spec:
             {{- $spec := .observed.composite.resource.spec }}
             {{- $bucketName := $spec.bucketName }}
             {{- $region := $spec.region }}
-            {{- $tags := merge (dict
-                "crossplane-name" $bucketName
-                "crossplane-providerconfig" "pod-identity"
-                "crossplane-kind" "Bucket.s3.aws.m.upbound.io"
-                "Name" $bucketName
-              ) (default (dict) $spec.tags) }}
             {{- $pab := default (dict) $spec.publicAccessBlock }}
             {{- $versioning := default (dict) $spec.versioning }}
             {{- $sse := default (dict) $spec.serverSideEncryption }}
@@ -48,12 +42,8 @@ spec:
                 region: {{ $region }}
                 forceDestroy: {{ default false $spec.forceDestroy }}
                 objectLockEnabled: {{ default false $spec.objectLockEnabled }}
-                tags:
-                  {{ range $k, $v := $tags }}
-                  {{ $k }}: {{ $v | quote }}
-                  {{ end }}
               providerConfigRef:
-                name: pod-identity
+                name: default
                 kind: ClusterProviderConfig
             ---
             apiVersion: s3.aws.m.upbound.io/v1beta1
@@ -69,7 +59,7 @@ spec:
                 rule:
                   objectOwnership: {{ default "BucketOwnerEnforced" $spec.objectOwnership }}
               providerConfigRef:
-                name: pod-identity
+                name: default
                 kind: ClusterProviderConfig
             ---
             apiVersion: s3.aws.m.upbound.io/v1beta1
@@ -87,7 +77,7 @@ spec:
                 ignorePublicAcls: {{ default true $pab.ignorePublicAcls }}
                 restrictPublicBuckets: {{ default true $pab.restrictPublicBuckets }}
               providerConfigRef:
-                name: pod-identity
+                name: default
                 kind: ClusterProviderConfig
             ---
             apiVersion: s3.aws.m.upbound.io/v1beta1
@@ -104,7 +94,7 @@ spec:
                   status: {{ default "Suspended" $versioning.status }}
                   mfaDelete: {{ default "Disabled" $versioning.mfaDelete }}
               providerConfigRef:
-                name: pod-identity
+                name: default
                 kind: ClusterProviderConfig
             ---
             apiVersion: s3.aws.m.upbound.io/v1beta1
@@ -125,7 +115,7 @@ spec:
                       kmsMasterKeyId: {{ $sse.kmsMasterKeyId | quote }}
                       {{ end }}
               providerConfigRef:
-                name: pod-identity
+                name: default
                 kind: ClusterProviderConfig
             {{- if $acl }}
             ---
@@ -141,7 +131,7 @@ spec:
                 bucket: {{ $bucketName }}
                 acl: {{ $acl | quote }}
               providerConfigRef:
-                name: pod-identity
+                name: default
                 kind: ClusterProviderConfig
             {{- end }}
             {{- if gt (len $lifecycleRules) 0 }}
@@ -192,7 +182,7 @@ spec:
                     {{ end }}
                   {{ end }}
               providerConfigRef:
-                name: pod-identity
+                name: default
                 kind: ClusterProviderConfig
             {{- end }}
             {{- if gt (len $corsRules) 0 }}
@@ -218,7 +208,7 @@ spec:
                     {{ end }}
                   {{ end }}
               providerConfigRef:
-                name: pod-identity
+                name: default
                 kind: ClusterProviderConfig
             {{- end }}
             {{- if $logging.enabled }}
@@ -236,7 +226,7 @@ spec:
                 targetBucket: {{ $logging.targetBucket | quote }}
                 targetPrefix: {{ default "" $logging.targetPrefix | quote }}
               providerConfigRef:
-                name: pod-identity
+                name: default
                 kind: ClusterProviderConfig
             {{- end }}
             {{- if $website.enabled }}
@@ -256,7 +246,7 @@ spec:
                 errorDocument:
                   key: {{ default "error.html" $website.errorDocument | quote }}
               providerConfigRef:
-                name: pod-identity
+                name: default
                 kind: ClusterProviderConfig
             {{- end }}
             {{- if $olr.mode }}
@@ -281,7 +271,7 @@ spec:
                     years: {{ $olr.years }}
                     {{ end }}
               providerConfigRef:
-                name: pod-identity
+                name: default
                 kind: ClusterProviderConfig
             {{- end }}
             {{- if $policy }}
@@ -298,7 +288,7 @@ spec:
                 bucket: {{ $bucketName }}
                 policy: {{ $policy | quote }}
               providerConfigRef:
-                name: pod-identity
+                name: default
                 kind: ClusterProviderConfig
             {{- end }}
 

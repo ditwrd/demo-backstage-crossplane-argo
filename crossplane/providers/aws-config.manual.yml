@@ -1,7 +1,7 @@
 apiVersion: aws.m.upbound.io/v1beta1
 kind: ClusterProviderConfig
 metadata:
-  name: pod-identity
+  name: default
   namespace: crossplane-system
 spec:
   credentials:
@@ -11,6 +11,7 @@ spec:
       namespace: crossplane-system
       key: credentials
   endpoint:
+    hostnameImmutable: true
     url:
       type: Static
       static: http://ministack-kubedeploy.ministack.svc.cluster.local:4566

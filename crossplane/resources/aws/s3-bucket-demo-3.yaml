@@ -1,0 +1,8 @@
+apiVersion: aws.example.org/v1alpha1
+kind: XS3Bucket
+metadata:
+  name: s3-bucket-demo-3
+  namespace: aws
+spec:
+  bucketName: demo-bca-s3-bucket-demo-3
+  region: us-east-1

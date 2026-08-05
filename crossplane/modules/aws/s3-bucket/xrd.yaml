@@ -37,15 +37,11 @@ spec:
                   type: boolean
                   default: false
                   description: Enable Object Lock support on the bucket (cannot be changed after creation).
-                tags:
-                  type: object
-                  additionalProperties:
-                    type: string
-                  default: {}
 
                 objectOwnership:
                   type: string
-                  enum: [BucketOwnerEnforced, BucketOwnerPreferred, ObjectWriter]
+                  enum:
+                    [BucketOwnerEnforced, BucketOwnerPreferred, ObjectWriter]
                   default: BucketOwnerEnforced
                   description: Object ownership setting. ACLs only work with BucketOwnerPreferred/ObjectWriter.
                 acl:
@@ -143,8 +139,10 @@ spec:
                     properties:
                       allowedMethods: { type: array, items: { type: string } }
                       allowedOrigins: { type: array, items: { type: string } }
-                      allowedHeaders: { type: array, items: { type: string }, default: [] }
-                      exposeHeaders: { type: array, items: { type: string }, default: [] }
+                      allowedHeaders:
+                        { type: array, items: { type: string }, default: [] }
+                      exposeHeaders:
+                        { type: array, items: { type: string }, default: [] }
                       maxAgeSeconds: { type: integer }
 
                 logging:
