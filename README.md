@@ -53,17 +53,7 @@ helmfile apply
 
 Installs ArgoCD (`argo` namespace), Crossplane core (`crossplane-system`), and ministack (`ministack` namespace, mocks S3/SQS/IAM on port 4566).
 
-**5. Point the AWS provider at ministack's real ClusterIP**
-
-`crossplane/providers/aws.yaml` works around a [known DNS gap](#troubleshooting) by pinning ministack's ClusterIP into a `hostAliases` entry — but that IP is assigned by Kubernetes on install and **differs per cluster**. Re-derive and patch it before bootstrapping:
-
-```sh
-kubectl -n ministack get svc ministack-kubedeploy -o jsonpath='{.spec.clusterIP}'
-```
-
-Update the `hostAliases[].ip` value in `crossplane/providers/aws.yaml` to match, then commit and push — ArgoCD pulls this file from GitHub, so a local-only edit won't be picked up.
-
-**6. Bootstrap ArgoCD (app-of-apps)**
+**5. Bootstrap ArgoCD (app-of-apps)**
 
 ```sh
 kubectl apply -f argo/bootstrap/
@@ -71,7 +61,7 @@ kubectl apply -f argo/bootstrap/
 
 This applies the `demo-bca` AppProject and root Application, which then syncs the three ApplicationSets in `argo/application-set/` — installing Crossplane Providers (`crossplane/providers/`), XRD/Composition modules (`crossplane/modules/`), and XR instances (`crossplane/resources/`).
 
-**7. Apply the manual provider credentials**
+**6. Apply the manual provider credentials**
 
 `crossplane/providers/aws-config.manual.yml` is deliberately excluded from GitOps (its `.yml` extension doesn't match the ApplicationSet's `*.yaml` glob) since it carries the mock AWS credentials Secret. Apply it once the AWS provider package is `Healthy`:
 
@@ -80,7 +70,7 @@ kubectl wait provider.pkg.crossplane.io/upbound-provider-aws-s3 --for=condition=
 kubectl apply -f crossplane/providers/aws-config.manual.yml
 ```
 
-**8. Access ArgoCD**
+**7. Access ArgoCD**
 
 ```sh
 kubectl -n argo get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d
@@ -89,7 +79,7 @@ kubectl -n argo port-forward svc/argo-argocd-server 8080:80
 
 Open http://localhost:8080, log in as `admin` with the password above.
 
-**9. Access ministack**
+**8. Access ministack**
 
 ```sh
 kubectl -n ministack port-forward svc/ministack-kubedeploy 4566:4566
@@ -98,7 +88,7 @@ stackport
 
 `stackport` opens ministack's UI; port 4566 also matches `AWS_ENDPOINT_URL` in `mise.toml`, so any AWS CLI/SDK call made locally routes to the mock automatically.
 
-**10. (optional) Run Backstage**
+**9. (optional) Run Backstage**
 
 ```sh
 cd backstage
@@ -142,7 +132,7 @@ scratch.md             # working notes
 
 ## Troubleshooting
 
-**`dial tcp: lookup 000000000000.<host>: no such host` on the AWS provider.** The AWS SDK prefixes S3 Control calls with a synthetic account ID (`000000000000`, since STS is disabled), and that hostname has no DNS entry. Fixed by aliasing it to ministack's ClusterIP in `crossplane/providers/aws.yaml` — see [step 5](#quick-start) above. This IP is per-cluster; re-derive it any time you recreate the cluster.
+**`dial tcp: lookup 000000000000.<host>: no such host` on the AWS provider.** The AWS SDK prefixes S3 Control calls with a synthetic account ID (`000000000000`, since STS is disabled), generating a hostname with no DNS entry. This is handled automatically: an `initContainer` resolves ministack's real ClusterIP at pod startup and aliases the prefixed hostname in `/etc/hosts`. If you still see this error, check that the `resolve-ministack-ip` initContainer completed (the AWS S3 provider pod should show `Init:0/1` briefly, then `1/1 Running`) and that ministack's Service DNS is reachable from the `crossplane-system` namespace.
 
 ## Contributing
 
