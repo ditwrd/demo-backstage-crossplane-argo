@@ -46,6 +46,9 @@ releases:
           repository: ministackorg/ministack
           tag: 1.4.11-full
           pullPolicy: Always
+      - env:
+          - name: LOG_LEVEL
+            value: DEBUG
       - ports:
           # Admin UI pot
           - name: http
