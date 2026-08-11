@@ -26,7 +26,44 @@ spec:
       selector: {}
       template:
         spec:
+          # aws-sdk-go-v2 (AccountIDEndpointMode=preferred, the SDK default)
+          # prefixes the S3 Control endpoint with the resolved account id
+          # (here fixed at "000000000000" since skip_requesting_account_id
+          # skips the STS lookup). Ministack's static endpoint has no DNS
+          # entry for that prefixed hostname, so bucket tagging
+          # (ListTagsForResource, used by the aws_s3_bucket tagging
+          # interceptor) fails with "dial tcp: lookup 000000000000.<host>:
+          # no such host".
+          #
+          # A hardcoded hostAliases IP would work, but ministack's ClusterIP
+          # is assigned by Kubernetes on install and differs per
+          # cluster/user. Instead, resolve it dynamically at pod startup:
+          # an initContainer looks up the real service name and writes the
+          # aliased hostname into a shared /etc/hosts, so this works
+          # unmodified on any cluster.
+          volumes:
+            - name: hosts-file
+              emptyDir: {}
+          initContainers:
+            - name: resolve-ministack-ip
+              image: busybox:1.36
+              command:
+                - sh
+                - -c
+                - |
+                  set -eu
+                  ip=$(nslookup ministack-kubedeploy.ministack.svc.cluster.local \
+                    | awk '/^Name:/{f=1; next} f && /^Address/{print $2; exit}')
+                  cp /etc/hosts /hosts-file/hosts
+                  echo "$ip 000000000000.ministack-kubedeploy.ministack.svc.cluster.local" >> /hosts-file/hosts
+              volumeMounts:
+                - name: hosts-file
+                  mountPath: /hosts-file
           containers:
             - name: package-runtime
               args:
                 - --debug
+              volumeMounts:
+                - name: hosts-file
+                  mountPath: /etc/hosts
+                  subPath: hosts
