@@ -2,6 +2,8 @@ apiVersion: apiextensions.crossplane.io/v2
 kind: CompositeResourceDefinition
 metadata:
   name: xs3buckets.aws.example.org
+  annotations:
+    terasky.backstage.io/target-path: crossplane/resources/aws
 spec:
   group: aws.example.org
   scope: Namespaced

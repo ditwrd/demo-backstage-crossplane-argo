@@ -103,18 +103,8 @@ catalog:
     entityFilename: catalog-info.yaml
     pullRequestBranchName: backstage-integration
   rules:
-    - allow: [Component, System, API, Resource, Location]
+    - allow: [Component, System, API, Resource, Location, Template]
   locations:
-    # Local example data, file locations are relative to the backend process, typically `packages/backend`
-    - type: file
-      target: ../../examples/entities.yaml
-
-    # Local example template
-    - type: file
-      target: ../../examples/template/template.yaml
-      rules:
-        - allow: [Template]
-
     # Local example organizational data
     - type: file
       target: ../../examples/org.yaml
@@ -132,7 +122,33 @@ catalog:
     #     - allow: [User, Group]
 
 kubernetes:
-  # see https://backstage.io/docs/features/kubernetes/configuration for kubernetes configuration options
+  serviceLocatorMethod:
+    type: multiTenant
+  clusterLocatorMethods:
+    - type: localKubectlProxy
+
+# Ingests Crossplane XRDs as scaffolder templates and Crossplane claims/XRs as catalog entities
+kubernetesIngestor:
+  components:
+    enabled: true
+    disableDefaultWorkloadTypes: true # skip generic Deployment/StatefulSet/etc ingestion; claims still flow via crossplane.claims below
+  crossplane:
+    enabled: true
+    claims:
+      ingestAllClaims: true
+    xrds:
+      enabled: true
+      ingestAllXRDs: true
+      convertDefaultValuesToPlaceholders: true
+      publishPhase:
+        target: github
+        git:
+          repoUrl: github.com?owner=ditwrd&repo=demo-backstage-crossplane-argo
+          targetBranch: main
+
+# Enables permission checks for the crossplane-resources plugin (allow-all-policy module is registered below)
+crossplane:
+  enablePermissions: true
 
 # see https://backstage.io/docs/permissions/getting-started for more on the permission framework
 permission:

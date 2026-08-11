@@ -59,6 +59,13 @@ backend.add(import('@backstage/plugin-search-backend-module-techdocs'));
 // kubernetes plugin
 backend.add(import('@backstage/plugin-kubernetes-backend'));
 
+// crossplane ingestion + scaffolder claim-templating action (TeraSky plugins)
+backend.add(import('@terasky/backstage-plugin-kubernetes-ingestor'));
+backend.add(import('@terasky/backstage-plugin-crossplane-resources-backend'));
+backend.add(
+  import('@terasky/backstage-plugin-scaffolder-backend-module-terasky-utils'),
+);
+
 // notifications and signals plugins
 backend.add(import('@backstage/plugin-notifications-backend'));
 backend.add(import('@backstage/plugin-signals-backend'));

@@ -1,2 +1,157 @@
+<div align="center">
+
 # demo-backstage-crossplane-argo
-Infrastructure platform demo using backstage, crossplane, and argo
+
+Local platform-engineering demo: Crossplane manages infra, ArgoCD does GitOps, Backstage is the self-service front door — all in a single `kind` cluster.
+
+[![License](https://img.shields.io/github/license/ditwrd/demo-backstage-crossplane-argo?style=for-the-badge)](https://github.com/ditwrd/demo-backstage-crossplane-argo/blob/main/LICENSE)
+[![Stars](https://img.shields.io/github/stars/ditwrd/demo-backstage-crossplane-argo?style=for-the-badge)](https://github.com/ditwrd/demo-backstage-crossplane-argo/stargazers)
+
+</div>
+
+## What is this?
+
+A `kind` cluster wired end-to-end: Crossplane composes an `XS3Bucket` claim into a real (mocked) AWS S3 bucket, ArgoCD reconciles everything under `crossplane/` via an app-of-apps, and Backstage exposes the XRD as a self-service scaffolder template so a claim can be created from a web form and land as a PR. AWS calls are mocked locally through [ministack](https://github.com/ministackorg/ministack) — no real cloud account needed.
+
+## Prerequisites
+
+- [Docker](https://docs.docker.com/get-docker/) (for `kind`)
+- [mise](https://mise.jdx.dev/) to install pinned tool versions
+
+## Quick Start
+
+**1. Install tools**
+
+```sh
+mise install
+```
+
+Installs the versions pinned in `mise.toml`: `kind`, `helmfile`, `crossplane`, `kubectx`, `node`, `yarn`, and the `stackport` CLI.
+
+**2. Create the cluster**
+
+```sh
+kind create cluster --config kind.yaml
+```
+
+Creates cluster `demobca` (kubeconfig context `kind-demobca`).
+
+**3. (optional) Preload the ArgoCD image**
+
+Skips a slow pull during `helmfile apply`:
+
+```sh
+docker pull quay.io/argoproj/argocd:v3.5.0
+kind load docker-image quay.io/argoproj/argocd:v3.5.0 --name demobca
+```
+
+**4. Install the platform stack**
+
+```sh
+helmfile apply
+```
+
+Installs ArgoCD (`argo` namespace), Crossplane core (`crossplane-system`), and ministack (`ministack` namespace, mocks S3/SQS/IAM on port 4566).
+
+**5. Point the AWS provider at ministack's real ClusterIP**
+
+`crossplane/providers/aws.yaml` works around a [known DNS gap](#troubleshooting) by pinning ministack's ClusterIP into a `hostAliases` entry — but that IP is assigned by Kubernetes on install and **differs per cluster**. Re-derive and patch it before bootstrapping:
+
+```sh
+kubectl -n ministack get svc ministack-kubedeploy -o jsonpath='{.spec.clusterIP}'
+```
+
+Update the `hostAliases[].ip` value in `crossplane/providers/aws.yaml` to match, then commit and push — ArgoCD pulls this file from GitHub, so a local-only edit won't be picked up.
+
+**6. Bootstrap ArgoCD (app-of-apps)**
+
+```sh
+kubectl apply -f argo/bootstrap/
+```
+
+This applies the `demo-bca` AppProject and root Application, which then syncs the three ApplicationSets in `argo/application-set/` — installing Crossplane Providers (`crossplane/providers/`), XRD/Composition modules (`crossplane/modules/`), and XR instances (`crossplane/resources/`).
+
+**7. Apply the manual provider credentials**
+
+`crossplane/providers/aws-config.manual.yml` is deliberately excluded from GitOps (its `.yml` extension doesn't match the ApplicationSet's `*.yaml` glob) since it carries the mock AWS credentials Secret. Apply it once the AWS provider package is `Healthy`:
+
+```sh
+kubectl wait provider.pkg.crossplane.io/upbound-provider-aws-s3 --for=condition=Healthy --timeout=120s
+kubectl apply -f crossplane/providers/aws-config.manual.yml
+```
+
+**8. Access ArgoCD**
+
+```sh
+kubectl -n argo get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d
+kubectl -n argo port-forward svc/argo-argocd-server 8080:80
+```
+
+Open http://localhost:8080, log in as `admin` with the password above.
+
+**9. Access ministack**
+
+```sh
+kubectl -n ministack port-forward svc/ministack-kubedeploy 4566:4566
+stackport
+```
+
+`stackport` opens ministack's UI; port 4566 also matches `AWS_ENDPOINT_URL` in `mise.toml`, so any AWS CLI/SDK call made locally routes to the mock automatically.
+
+**10. (optional) Run Backstage**
+
+```sh
+cd backstage
+yarn install
+GITHUB_TOKEN=<a token with repo scope> yarn start
+```
+
+Frontend on http://localhost:3000, backend on :7007. Sign in as guest, then check `/` for ingested Crossplane claims and `/create` for the `XS3Bucket` scaffolder template — submitting it opens a PR against this repo under `crossplane/resources/aws/`.
+
+## Project Structure
+
+```
+argo/
+  application-set/    # ApplicationSets: modules, providers, resources
+  bootstrap/           # App-of-apps entrypoint (AppProject + root Application)
+backstage/
+  examples/            # Backstage org data
+  packages/            # app (frontend) + backend
+  plugins/
+crossplane/
+  modules/             # XRD + Composition per provider/resource
+  providers/           # Crossplane Provider packages + ProviderConfig
+  resources/           # XR claim instances (synced by ArgoCD)
+LICENSE
+README.md
+helmfile.yaml          # ArgoCD, Crossplane core, ministack
+kind.yaml              # kind cluster config
+mise.toml              # pinned tool versions
+scratch.md             # working notes
+```
+
+## Documentation
+
+| Resource | Description |
+|----------|-------------|
+| `argo/bootstrap/` | App-of-apps entrypoint — apply this once, everything else follows |
+| `argo/application-set/` | The three ApplicationSets driving GitOps sync |
+| `crossplane/modules/` | XRD + Composition definitions (add a new resource type here) |
+| `crossplane/resources/` | Live XR instances — what Backstage's scaffolder writes to |
+| `backstage/app-config.yaml` | `kubernetesIngestor` config: claim/XRD ingestion, GitHub publish target |
+
+## Troubleshooting
+
+**`dial tcp: lookup 000000000000.<host>: no such host` on the AWS provider.** The AWS SDK prefixes S3 Control calls with a synthetic account ID (`000000000000`, since STS is disabled), and that hostname has no DNS entry. Fixed by aliasing it to ministack's ClusterIP in `crossplane/providers/aws.yaml` — see [step 5](#quick-start) above. This IP is per-cluster; re-derive it any time you recreate the cluster.
+
+## Contributing
+
+Contributions welcome — open an issue or PR.
+
+<a href="https://github.com/ditwrd/demo-backstage-crossplane-argo/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=ditwrd/demo-backstage-crossplane-argo" alt="Contributors" />
+</a>
+
+## License
+
+[GPL-3.0](LICENSE)
