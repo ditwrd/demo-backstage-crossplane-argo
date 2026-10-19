@@ -10,10 +10,12 @@ metadata:
   name: demo-alpha
   namespace: aws
 spec:
+  bucketName: demo-alpha
   forceDestroy: false
   logging:
     enabled: false
   objectLockEnabled: false
+  region: us-east-1
   publicAccessBlock:
     blockPublicAcls: true
     blockPublicPolicy: true

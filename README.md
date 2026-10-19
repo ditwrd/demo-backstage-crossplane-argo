@@ -90,7 +90,10 @@ stackport
 
 **9. (optional) Run Backstage**
 
+Backstage's `localKubectlProxy` cluster locator reaches the cluster through `kubectl proxy` on :8001. Start it first — if Backstage boots without it, the ingestor's first run fails and the next sync is ~10 minutes out.
+
 ```sh
+kubectl proxy --port=8001 &
 cd backstage
 yarn install
 GITHUB_TOKEN=<a token with repo scope> yarn start
