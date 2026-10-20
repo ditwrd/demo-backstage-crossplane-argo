@@ -65,6 +65,8 @@ backend.add(import('@terasky/backstage-plugin-crossplane-resources-backend'));
 backend.add(
   import('@terasky/backstage-plugin-scaffolder-backend-module-terasky-utils'),
 );
+// roadie utils: jsonata/yaml/fs actions used by the claim update template
+backend.add(import('@roadiehq/scaffolder-backend-module-utils'));
 
 // notifications and signals plugins
 backend.add(import('@backstage/plugin-notifications-backend'));

@@ -109,6 +109,8 @@ GITHUB_TOKEN=<a token with repo scope> yarn start
 
 Frontend on http://localhost:3000, backend on :7007. Sign in as guest, then check `/` for ingested Crossplane claims and `/create` for the `XS3Bucket` scaffolder template — submitting it opens a PR against this repo under `crossplane/resources/aws/`.
 
+To change an existing claim, use the `Update Kubernetes Manifest` template (`backstage/examples/templates/update-claim.yaml`) at `/create`: pick the claim Component, edit the form generated from the XRD's CRD schema, and it opens a PR that rewrites the claim's `spec` in its source file. Only claims carrying the `terasky.backstage.io/source-file-url` annotation (those created through Backstage) resolve automatically; for others paste the file's GitHub URL into `Source File URL`. The form reads the file anonymously from api.github.com, so the repo must be public (see `backstage/packages/app/src/modules/public-github`).
+
 ## Project Structure
 
 ```

@@ -121,6 +121,12 @@ catalog:
     #   rules:
     #     - allow: [User, Group]
 
+    # Claim update flow (opens a PR against the claim's source file)
+    - type: file
+      target: ../../examples/templates/update-claim.yaml
+      rules:
+        - allow: [Template]
+
 kubernetes:
   serviceLocatorMethod:
     type: multiTenant
