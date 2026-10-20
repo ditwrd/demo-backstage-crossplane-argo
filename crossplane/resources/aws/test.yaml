@@ -1,0 +1,25 @@
+apiVersion: aws.example.org/v1alpha1
+kind: XS3Bucket
+metadata:
+  annotations:
+    terasky.backstage.io/source-info: '{"pushToGit":true,"gitBranch":"main","gitRepo":"github.com?owner=ditwrd&repo=demo-backstage-crossplane-argo","gitLayout":"custom","basePath":""}'
+    terasky.backstage.io/add-to-catalog: 'true'
+    terasky.backstage.io/owner: group:default/guests
+    terasky.backstage.io/system: crossplane
+    terasky.backstage.io/source-file-url: https://github.com/ditwrd/demo-backstage-crossplane-argo/blob/main/crossplane/resources/aws/test.yaml
+  name: test
+  namespace: crossplane
+spec:
+  forceDestroy: false
+  logging:
+    enabled: false
+  objectLockEnabled: false
+  publicAccessBlock:
+    blockPublicAcls: true
+    blockPublicPolicy: true
+    ignorePublicAcls: true
+    restrictPublicBuckets: true
+  serverSideEncryption:
+    bucketKeyEnabled: true
+  website:
+    enabled: false
