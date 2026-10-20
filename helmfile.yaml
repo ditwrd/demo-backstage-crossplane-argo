@@ -74,6 +74,58 @@ releases:
               targetPort: http
               protocol: TCP
               name: http
+  # StackPort UI for ministack. Runs in-cluster so it never touches the local
+  # AWS profile/SSO config. No custom image: uvx fetches stackport at start.
+  - name: stackport
+    namespace: ministack
+    chart: sysbee/kubedeploy
+    disableValidationOnInstall: true
+    version: 1.2.2
+    needs:
+      - ministack/ministack
+    values:
+      - replicaCount: 1
+      - image:
+          repository: ghcr.io/astral-sh/uv
+          tag: python3.13-bookworm-slim
+          command: ["uvx"]
+          args: ["stackport==0.3.8", "serve", "--port", "8080"]
+      - env:
+          - name: AWS_ENDPOINT_URL
+            value: http://ministack-kubedeploy.ministack.svc.cluster.local:4566
+          - name: AWS_ACCESS_KEY_ID
+            value: test
+          - name: AWS_SECRET_ACCESS_KEY
+            value: test
+          - name: AWS_REGION
+            value: us-east-1
+      - ports:
+          - name: http
+            containerPort: 8080
+            protocol: TCP
+      - healthcheck:
+          enabled: true
+          probes:
+            livenessProbe:
+              tcpSocket:
+                port: http
+            # uvx downloads stackport + deps on every pod start; allow ~5min
+            startupProbe:
+              tcpSocket:
+                port: http
+              periodSeconds: 5
+              failureThreshold: 60
+            readinessProbe:
+              tcpSocket:
+                port: http
+      - service:
+          enabled: true
+          type: ClusterIP
+          ports:
+            - port: 8080
+              targetPort: http
+              protocol: TCP
+              name: http
 
 helmDefaults:
   kubeContext: kind-demobca

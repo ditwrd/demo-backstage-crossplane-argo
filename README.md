@@ -26,7 +26,7 @@ A `kind` cluster wired end-to-end: Crossplane composes an `XS3Bucket` claim into
 mise install
 ```
 
-Installs the versions pinned in `mise.toml`: `kind`, `helmfile`, `crossplane`, `kubectx`, `node`, `yarn`, and the `stackport` CLI.
+Installs the versions pinned in `mise.toml`: `kind`, `helmfile`, `crossplane`, `kubectx`, `node`, and `yarn`.
 
 **2. Create the cluster**
 
@@ -35,6 +35,14 @@ kind create cluster --config kind.yaml
 ```
 
 Creates cluster `demobca` (kubeconfig context `kind-demobca`).
+
+If pods can't resolve external names (`kubectl run -it --rm --image=busybox:1.36 --restart=Never t -- nslookup pypi.org` fails), the kind node's resolver points at a docker gateway with no DNS listener. StackPort installs itself from PyPI at pod start, so point CoreDNS at public resolvers first:
+
+```sh
+kubectl -n kube-system get cm coredns -o json \
+  | jq '.data.Corefile |= sub("forward \\. /etc/resolv.conf"; "forward . 1.1.1.1 8.8.8.8")' \
+  | kubectl apply -f - && kubectl -n kube-system rollout restart deploy/coredns
+```
 
 **3. (optional) Preload the ArgoCD image**
 
@@ -82,11 +90,11 @@ Open http://localhost:8080, log in as `admin` with the password above.
 **8. Access ministack**
 
 ```sh
-kubectl -n ministack port-forward svc/ministack-kubedeploy 4566:4566
-stackport
+kubectl -n ministack port-forward svc/ministack-kubedeploy 4566:4566 &
+kubectl -n ministack port-forward svc/stackport-kubedeploy 8081:8080
 ```
 
-`stackport` opens ministack's UI; port 4566 also matches `AWS_ENDPOINT_URL` in `mise.toml`, so any AWS CLI/SDK call made locally routes to the mock automatically.
+Open http://localhost:8081 for StackPort. It runs in-cluster (uv image, `stackport` fetched at pod start, so first boot needs a minute) and talks to ministack with dummy credentials, so your local AWS profile is never used. Port 4566 also matches `AWS_ENDPOINT_URL` in `mise.toml`, so any AWS CLI/SDK call made locally routes to the mock automatically.
 
 **9. (optional) Run Backstage**
 

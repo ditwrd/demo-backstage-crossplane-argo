@@ -4,7 +4,6 @@ helmfile = "1.5.5"
 kind = "0.32.0"
 kubectx = "0.11.0"
 node = "24.16.0"
-"pipx:stackport" = "latest"
 yarn = "4.17.1"
 
 [env]
